@@ -3,7 +3,7 @@ module github.com/dechristopher/lod
 go 1.19
 
 require (
-	github.com/BurntSushi/toml v1.3.2
+	github.com/BurntSushi/toml v1.4.0
 	github.com/allegro/bigcache/v3 v3.1.0
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/gofiber/fiber/v2 v2.43.0
