@@ -1,15 +1,16 @@
 package fasthttp
 
 import (
-	"fmt"
+	"crypto/tls"
 	"net"
 	"sync"
 )
 
 type perIPConnCounter struct {
-	pool sync.Pool
-	lock sync.Mutex
-	m    map[uint32]int
+	perIPConnPool    sync.Pool
+	perIPTLSConnPool sync.Pool
+	m                map[uint32]int
+	lock             sync.Mutex
 }
 
 func (cc *perIPConnCounter) Register(ip uint32) int {
@@ -25,28 +26,51 @@ func (cc *perIPConnCounter) Register(ip uint32) int {
 
 func (cc *perIPConnCounter) Unregister(ip uint32) {
 	cc.lock.Lock()
+	defer cc.lock.Unlock()
 	if cc.m == nil {
-		cc.lock.Unlock()
+		// developer safeguard
 		panic("BUG: perIPConnCounter.Register() wasn't called")
 	}
 	n := cc.m[ip] - 1
 	if n < 0 {
-		cc.lock.Unlock()
-		panic(fmt.Sprintf("BUG: negative per-ip counter=%d for ip=%d", n, ip))
+		n = 0
 	}
 	cc.m[ip] = n
-	cc.lock.Unlock()
 }
 
 type perIPConn struct {
 	net.Conn
 
-	ip               uint32
 	perIPConnCounter *perIPConnCounter
+
+	ip uint32
 }
 
-func acquirePerIPConn(conn net.Conn, ip uint32, counter *perIPConnCounter) *perIPConn {
-	v := counter.pool.Get()
+type perIPTLSConn struct {
+	*tls.Conn
+
+	perIPConnCounter *perIPConnCounter
+
+	ip uint32
+}
+
+func acquirePerIPConn(conn net.Conn, ip uint32, counter *perIPConnCounter) net.Conn {
+	if tlsConn, ok := conn.(*tls.Conn); ok {
+		v := counter.perIPTLSConnPool.Get()
+		if v == nil {
+			return &perIPTLSConn{
+				perIPConnCounter: counter,
+				Conn:             tlsConn,
+				ip:               ip,
+			}
+		}
+		c := v.(*perIPTLSConn)
+		c.Conn = tlsConn
+		c.ip = ip
+		return c
+	}
+
+	v := counter.perIPConnPool.Get()
 	if v == nil {
 		return &perIPConn{
 			perIPConnCounter: counter,
@@ -60,15 +84,19 @@ func acquirePerIPConn(conn net.Conn, ip uint32, counter *perIPConnCounter) *perI
 	return c
 }
 
-func releasePerIPConn(c *perIPConn) {
-	c.Conn = nil
-	c.perIPConnCounter.pool.Put(c)
-}
-
 func (c *perIPConn) Close() error {
 	err := c.Conn.Close()
 	c.perIPConnCounter.Unregister(c.ip)
-	releasePerIPConn(c)
+	c.Conn = nil
+	c.perIPConnCounter.perIPConnPool.Put(c)
+	return err
+}
+
+func (c *perIPTLSConn) Close() error {
+	err := c.Conn.Close()
+	c.perIPConnCounter.Unregister(c.ip)
+	c.Conn = nil
+	c.perIPConnCounter.perIPTLSConnPool.Put(c)
 	return err
 }
 

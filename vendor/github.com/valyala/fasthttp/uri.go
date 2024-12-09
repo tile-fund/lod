@@ -28,7 +28,7 @@ func ReleaseURI(u *URI) {
 }
 
 var uriPool = &sync.Pool{
-	New: func() interface{} {
+	New: func() any {
 		return &URI{}
 	},
 }
@@ -42,6 +42,8 @@ var uriPool = &sync.Pool{
 type URI struct {
 	noCopy noCopy
 
+	queryArgs Args
+
 	pathOriginal []byte
 	scheme       []byte
 	path         []byte
@@ -49,10 +51,14 @@ type URI struct {
 	hash         []byte
 	host         []byte
 
-	queryArgs       Args
+	fullURI    []byte
+	requestURI []byte
+
+	username        []byte
+	password        []byte
 	parsedQueryArgs bool
 
-	// Path values are sent as-is without normalization
+	// Path values are sent as-is without normalization.
 	//
 	// Disabled path normalization may be useful for proxying incoming requests
 	// to servers that are expecting paths to be forwarded as-is.
@@ -60,12 +66,6 @@ type URI struct {
 	// By default path values are normalized, i.e.
 	// extra slashes are removed, special characters are encoded.
 	DisablePathNormalizing bool
-
-	fullURI    []byte
-	requestURI []byte
-
-	username []byte
-	password []byte
 }
 
 // CopyTo copies uri contents to dst.
@@ -122,7 +122,7 @@ func (u *URI) SetUsernameBytes(username []byte) {
 	u.username = append(u.username[:0], username...)
 }
 
-// Password returns URI password
+// Password returns URI password.
 //
 // The returned bytes are valid until the next URI method call.
 func (u *URI) Password() []byte {
@@ -268,9 +268,7 @@ func (u *URI) SetHostBytes(host []byte) {
 	lowercaseBytes(u.host)
 }
 
-var (
-	ErrorInvalidURI = errors.New("invalid uri")
-)
+var ErrorInvalidURI = errors.New("invalid uri")
 
 // Parse initializes URI from the given host and uri.
 //
@@ -314,11 +312,11 @@ func (u *URI) parse(host, uri []byte, isTLS bool) error {
 	}
 
 	u.host = append(u.host, host...)
-	if parsedHost, err := parseHost(u.host); err != nil {
+	parsedHost, err := parseHost(u.host)
+	if err != nil {
 		return err
-	} else {
-		u.host = parsedHost
 	}
+	u.host = parsedHost
 	lowercaseBytes(u.host)
 
 	b := uri
@@ -538,25 +536,15 @@ func shouldEscape(c byte, mode encoding) bool {
 }
 
 func ishex(c byte) bool {
-	return ('0' <= c && c <= '9') ||
-		('a' <= c && c <= 'f') ||
-		('A' <= c && c <= 'F')
+	return hex2intTable[c] < 16
 }
 
 func unhex(c byte) byte {
-	switch {
-	case '0' <= c && c <= '9':
-		return c - '0'
-	case 'a' <= c && c <= 'f':
-		return c - 'a' + 10
-	case 'A' <= c && c <= 'F':
-		return c - 'A' + 10
-	}
-	return 0
+	return hex2intTable[c] & 15
 }
 
 // validOptionalPort reports whether port is either an empty string
-// or matches /^:\d*$/
+// or matches /^:\d*$/.
 func validOptionalPort(port []byte) bool {
 	if len(port) == 0 {
 		return true
@@ -690,7 +678,8 @@ func normalizePath(dst, src []byte) []byte {
 func (u *URI) RequestURI() []byte {
 	var dst []byte
 	if u.DisablePathNormalizing {
-		dst = append(u.requestURI[:0], u.PathOriginal()...)
+		dst = u.requestURI[:0]
+		dst = append(dst, u.PathOriginal()...)
 	} else {
 		dst = appendQuotedPath(u.requestURI[:0], u.Path())
 	}
