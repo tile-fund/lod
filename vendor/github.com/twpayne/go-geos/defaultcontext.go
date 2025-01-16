@@ -9,8 +9,8 @@ func Clone(g *Geom) *Geom {
 }
 
 // NewGeomFromBounds returns a new polygon populated with bounds.
-func NewGeomFromBounds(bounds *Bounds) *Geom {
-	return DefaultContext.NewGeomFromBounds(bounds)
+func NewGeomFromBounds(minX, minY, maxX, maxY float64) *Geom {
+	return DefaultContext.NewGeomFromBounds(minX, minY, maxX, maxY)
 }
 
 // NewCollection returns a new collection.
@@ -48,7 +48,7 @@ func NewEmptyPolygon() *Geom {
 	return DefaultContext.NewEmptyPolygon()
 }
 
-// NewGEOMFromGeoJSON parses a geometry in GeoJSON format from geoJSON.
+// NewGEOMFromGeoJSON parses a geometry in GeoJSON format from GeoJSON.
 func NewGeomFromGeoJSON(geoJSON string) (*Geom, error) {
 	return DefaultContext.NewGeomFromGeoJSON(geoJSON)
 }

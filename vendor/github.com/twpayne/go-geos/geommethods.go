@@ -60,11 +60,11 @@ func (g *Geom) Centroid() *Geom {
 }
 
 // ClipByRect returns g clipped to a rectangular polygon.
-func (g *Geom) ClipByRect(xMin float64, yMin float64, xMax float64, yMax float64) *Geom {
+func (g *Geom) ClipByRect(minX float64, minY float64, maxX float64, maxY float64) *Geom {
 	g.mustNotBeDestroyed()
 	g.context.Lock()
 	defer g.context.Unlock()
-	return g.context.newNonNilGeom(C.GEOSClipByRect_r(g.context.handle, g.geom, C.double(xMin), C.double(yMin), C.double(xMax), C.double(yMax)), nil)
+	return g.context.newNonNilGeom(C.GEOSClipByRect_r(g.context.handle, g.geom, C.double(minX), C.double(minY), C.double(maxX), C.double(maxY)), nil)
 }
 
 // Clone returns a clone of g.
@@ -83,6 +83,14 @@ func (g *Geom) ConcaveHull(ratio float64, allowHoles uint) *Geom {
 	return g.context.newNonNilGeom(C.GEOSConcaveHull_r(g.context.handle, g.geom, C.double(ratio), C.unsigned(allowHoles)), nil)
 }
 
+// ConcaveHullByLength returns the concave hull of g.
+func (g *Geom) ConcaveHullByLength(ratio float64, allowHoles uint) *Geom {
+	g.mustNotBeDestroyed()
+	g.context.Lock()
+	defer g.context.Unlock()
+	return g.context.newNonNilGeom(C.GEOSConcaveHullByLength_r(g.context.handle, g.geom, C.double(ratio), C.unsigned(allowHoles)), nil)
+}
+
 // ConstrainedDelaunayTriangulation returns the constrained Delaunay triangulation of the vertices of the g.
 func (g *Geom) ConstrainedDelaunayTriangulation() *Geom {
 	g.mustNotBeDestroyed()
@@ -96,10 +104,6 @@ func (g *Geom) Contains(other *Geom) bool {
 	g.mustNotBeDestroyed()
 	g.context.Lock()
 	defer g.context.Unlock()
-	if other.context != g.context {
-		other.context.Lock()
-		defer other.context.Unlock()
-	}
 	switch C.GEOSContains_r(g.context.handle, g.geom, other.geom) {
 	case 0:
 		return false
@@ -131,10 +135,6 @@ func (g *Geom) CoveredBy(other *Geom) bool {
 	g.mustNotBeDestroyed()
 	g.context.Lock()
 	defer g.context.Unlock()
-	if other.context != g.context {
-		other.context.Lock()
-		defer other.context.Unlock()
-	}
 	switch C.GEOSCoveredBy_r(g.context.handle, g.geom, other.geom) {
 	case 0:
 		return false
@@ -150,10 +150,6 @@ func (g *Geom) Covers(other *Geom) bool {
 	g.mustNotBeDestroyed()
 	g.context.Lock()
 	defer g.context.Unlock()
-	if other.context != g.context {
-		other.context.Lock()
-		defer other.context.Unlock()
-	}
 	switch C.GEOSCovers_r(g.context.handle, g.geom, other.geom) {
 	case 0:
 		return false
@@ -169,10 +165,6 @@ func (g *Geom) Crosses(other *Geom) bool {
 	g.mustNotBeDestroyed()
 	g.context.Lock()
 	defer g.context.Unlock()
-	if other.context != g.context {
-		other.context.Lock()
-		defer other.context.Unlock()
-	}
 	switch C.GEOSCrosses_r(g.context.handle, g.geom, other.geom) {
 	case 0:
 		return false
@@ -196,10 +188,6 @@ func (g *Geom) Difference(other *Geom) *Geom {
 	g.mustNotBeDestroyed()
 	g.context.Lock()
 	defer g.context.Unlock()
-	if other.context != g.context {
-		other.context.Lock()
-		defer other.context.Unlock()
-	}
 	return g.context.newGeom(C.GEOSDifference_r(g.context.handle, g.geom, other.geom), nil)
 }
 
@@ -208,10 +196,6 @@ func (g *Geom) DifferencePrec(other *Geom, gridSize float64) *Geom {
 	g.mustNotBeDestroyed()
 	g.context.Lock()
 	defer g.context.Unlock()
-	if other.context != g.context {
-		other.context.Lock()
-		defer other.context.Unlock()
-	}
 	return g.context.newGeom(C.GEOSDifferencePrec_r(g.context.handle, g.geom, other.geom, C.double(gridSize)), nil)
 }
 
@@ -220,10 +204,6 @@ func (g *Geom) Disjoint(other *Geom) bool {
 	g.mustNotBeDestroyed()
 	g.context.Lock()
 	defer g.context.Unlock()
-	if other.context != g.context {
-		other.context.Lock()
-		defer other.context.Unlock()
-	}
 	switch C.GEOSDisjoint_r(g.context.handle, g.geom, other.geom) {
 	case 0:
 		return false
@@ -239,10 +219,6 @@ func (g *Geom) Distance(other *Geom) float64 {
 	g.mustNotBeDestroyed()
 	g.context.Lock()
 	defer g.context.Unlock()
-	if other.context != g.context {
-		other.context.Lock()
-		defer other.context.Unlock()
-	}
 	var distance float64
 	if C.GEOSDistance_r(g.context.handle, g.geom, other.geom, (*C.double)(&distance)) == 0 {
 		panic(g.context.err)
@@ -255,10 +231,6 @@ func (g *Geom) DistanceIndexed(other *Geom) float64 {
 	g.mustNotBeDestroyed()
 	g.context.Lock()
 	defer g.context.Unlock()
-	if other.context != g.context {
-		other.context.Lock()
-		defer other.context.Unlock()
-	}
 	var distanceIndexed float64
 	if C.GEOSDistanceIndexed_r(g.context.handle, g.geom, other.geom, (*C.double)(&distanceIndexed)) == 0 {
 		panic(g.context.err)
@@ -271,10 +243,6 @@ func (g *Geom) DistanceWithin(other *Geom, dist float64) bool {
 	g.mustNotBeDestroyed()
 	g.context.Lock()
 	defer g.context.Unlock()
-	if other.context != g.context {
-		other.context.Lock()
-		defer other.context.Unlock()
-	}
 	switch C.GEOSDistanceWithin_r(g.context.handle, g.geom, other.geom, C.double(dist)) {
 	case 0:
 		return false
@@ -306,10 +274,6 @@ func (g *Geom) Equals(other *Geom) bool {
 	g.mustNotBeDestroyed()
 	g.context.Lock()
 	defer g.context.Unlock()
-	if other.context != g.context {
-		other.context.Lock()
-		defer other.context.Unlock()
-	}
 	switch C.GEOSEquals_r(g.context.handle, g.geom, other.geom) {
 	case 0:
 		return false
@@ -325,10 +289,6 @@ func (g *Geom) EqualsExact(other *Geom, tolerance float64) bool {
 	g.mustNotBeDestroyed()
 	g.context.Lock()
 	defer g.context.Unlock()
-	if other.context != g.context {
-		other.context.Lock()
-		defer other.context.Unlock()
-	}
 	switch C.GEOSEqualsExact_r(g.context.handle, g.geom, other.geom, C.double(tolerance)) {
 	case 0:
 		return false
@@ -344,10 +304,6 @@ func (g *Geom) FrechetDistance(other *Geom) float64 {
 	g.mustNotBeDestroyed()
 	g.context.Lock()
 	defer g.context.Unlock()
-	if other.context != g.context {
-		other.context.Lock()
-		defer other.context.Unlock()
-	}
 	var frechetDistance float64
 	if C.GEOSFrechetDistance_r(g.context.handle, g.geom, other.geom, (*C.double)(&frechetDistance)) == 0 {
 		panic(g.context.err)
@@ -360,10 +316,6 @@ func (g *Geom) FrechetDistanceDensify(other *Geom, densifyFrac float64) float64 
 	g.mustNotBeDestroyed()
 	g.context.Lock()
 	defer g.context.Unlock()
-	if other.context != g.context {
-		other.context.Lock()
-		defer other.context.Unlock()
-	}
 	var frechetDistanceDensify float64
 	if C.GEOSFrechetDistanceDensify_r(g.context.handle, g.geom, other.geom, C.double(densifyFrac), (*C.double)(&frechetDistanceDensify)) == 0 {
 		panic(g.context.err)
@@ -391,10 +343,6 @@ func (g *Geom) HausdorffDistance(other *Geom) float64 {
 	g.mustNotBeDestroyed()
 	g.context.Lock()
 	defer g.context.Unlock()
-	if other.context != g.context {
-		other.context.Lock()
-		defer other.context.Unlock()
-	}
 	var hausdorffDistance float64
 	if C.GEOSHausdorffDistance_r(g.context.handle, g.geom, other.geom, (*C.double)(&hausdorffDistance)) == 0 {
 		panic(g.context.err)
@@ -407,10 +355,6 @@ func (g *Geom) HausdorffDistanceDensify(other *Geom, densifyFrac float64) float6
 	g.mustNotBeDestroyed()
 	g.context.Lock()
 	defer g.context.Unlock()
-	if other.context != g.context {
-		other.context.Lock()
-		defer other.context.Unlock()
-	}
 	var hausdorffDistanceDensify float64
 	if C.GEOSHausdorffDistanceDensify_r(g.context.handle, g.geom, other.geom, C.double(densifyFrac), (*C.double)(&hausdorffDistanceDensify)) == 0 {
 		panic(g.context.err)
@@ -439,10 +383,6 @@ func (g *Geom) Intersection(other *Geom) *Geom {
 	g.mustNotBeDestroyed()
 	g.context.Lock()
 	defer g.context.Unlock()
-	if other.context != g.context {
-		other.context.Lock()
-		defer other.context.Unlock()
-	}
 	return g.context.newGeom(C.GEOSIntersection_r(g.context.handle, g.geom, other.geom), nil)
 }
 
@@ -451,10 +391,6 @@ func (g *Geom) IntersectionPrec(other *Geom, gridSize float64) *Geom {
 	g.mustNotBeDestroyed()
 	g.context.Lock()
 	defer g.context.Unlock()
-	if other.context != g.context {
-		other.context.Lock()
-		defer other.context.Unlock()
-	}
 	return g.context.newGeom(C.GEOSIntersectionPrec_r(g.context.handle, g.geom, other.geom, C.double(gridSize)), nil)
 }
 
@@ -463,10 +399,6 @@ func (g *Geom) Intersects(other *Geom) bool {
 	g.mustNotBeDestroyed()
 	g.context.Lock()
 	defer g.context.Unlock()
-	if other.context != g.context {
-		other.context.Lock()
-		defer other.context.Unlock()
-	}
 	switch C.GEOSIntersects_r(g.context.handle, g.geom, other.geom) {
 	case 0:
 		return false
@@ -557,10 +489,6 @@ func (g *Geom) LargestEmptyCircle(other *Geom, tolerance float64) *Geom {
 	g.mustNotBeDestroyed()
 	g.context.Lock()
 	defer g.context.Unlock()
-	if other.context != g.context {
-		other.context.Lock()
-		defer other.context.Unlock()
-	}
 	return g.context.newGeom(C.GEOSLargestEmptyCircle_r(g.context.handle, g.geom, other.geom, C.double(tolerance)), nil)
 }
 
@@ -657,10 +585,6 @@ func (g *Geom) Overlaps(other *Geom) bool {
 	g.mustNotBeDestroyed()
 	g.context.Lock()
 	defer g.context.Unlock()
-	if other.context != g.context {
-		other.context.Lock()
-		defer other.context.Unlock()
-	}
 	switch C.GEOSOverlaps_r(g.context.handle, g.geom, other.geom) {
 	case 0:
 		return false
@@ -684,10 +608,6 @@ func (g *Geom) Project(other *Geom) float64 {
 	g.mustNotBeDestroyed()
 	g.context.Lock()
 	defer g.context.Unlock()
-	if other.context != g.context {
-		other.context.Lock()
-		defer other.context.Unlock()
-	}
 	return float64(C.GEOSProject_r(g.context.handle, g.geom, other.geom))
 }
 
@@ -696,10 +616,6 @@ func (g *Geom) ProjectNormalized(other *Geom) float64 {
 	g.mustNotBeDestroyed()
 	g.context.Lock()
 	defer g.context.Unlock()
-	if other.context != g.context {
-		other.context.Lock()
-		defer other.context.Unlock()
-	}
 	return float64(C.GEOSProjectNormalized_r(g.context.handle, g.geom, other.geom))
 }
 
@@ -708,10 +624,6 @@ func (g *Geom) Relate(other *Geom) string {
 	g.mustNotBeDestroyed()
 	g.context.Lock()
 	defer g.context.Unlock()
-	if other.context != g.context {
-		other.context.Lock()
-		defer other.context.Unlock()
-	}
 	relateCStr := C.GEOSRelate_r(g.context.handle, g.geom, other.geom)
 	defer C.GEOSFree_r(g.context.handle, unsafe.Pointer(relateCStr))
 	return C.GoString(relateCStr)
@@ -722,10 +634,6 @@ func (g *Geom) RelateBoundaryNodeRule(other *Geom, bnr RelateBoundaryNodeRule) s
 	g.mustNotBeDestroyed()
 	g.context.Lock()
 	defer g.context.Unlock()
-	if other.context != g.context {
-		other.context.Lock()
-		defer other.context.Unlock()
-	}
 	relateBoundaryNodeRuleCStr := C.GEOSRelateBoundaryNodeRule_r(g.context.handle, g.geom, other.geom, C.int(bnr))
 	defer C.GEOSFree_r(g.context.handle, unsafe.Pointer(relateBoundaryNodeRuleCStr))
 	return C.GoString(relateBoundaryNodeRuleCStr)
@@ -752,10 +660,6 @@ func (g *Geom) SharedPaths(other *Geom) *Geom {
 	g.mustNotBeDestroyed()
 	g.context.Lock()
 	defer g.context.Unlock()
-	if other.context != g.context {
-		other.context.Lock()
-		defer other.context.Unlock()
-	}
 	return g.context.newGeom(C.GEOSSharedPaths_r(g.context.handle, g.geom, other.geom), nil)
 }
 
@@ -772,10 +676,6 @@ func (g *Geom) Snap(other *Geom, tolerance float64) *Geom {
 	g.mustNotBeDestroyed()
 	g.context.Lock()
 	defer g.context.Unlock()
-	if other.context != g.context {
-		other.context.Lock()
-		defer other.context.Unlock()
-	}
 	return g.context.newGeom(C.GEOSSnap_r(g.context.handle, g.geom, other.geom, C.double(tolerance)), nil)
 }
 
@@ -792,10 +692,6 @@ func (g *Geom) SymDifference(other *Geom) *Geom {
 	g.mustNotBeDestroyed()
 	g.context.Lock()
 	defer g.context.Unlock()
-	if other.context != g.context {
-		other.context.Lock()
-		defer other.context.Unlock()
-	}
 	return g.context.newGeom(C.GEOSSymDifference_r(g.context.handle, g.geom, other.geom), nil)
 }
 
@@ -804,10 +700,6 @@ func (g *Geom) SymDifferencePrec(other *Geom, gridSize float64) *Geom {
 	g.mustNotBeDestroyed()
 	g.context.Lock()
 	defer g.context.Unlock()
-	if other.context != g.context {
-		other.context.Lock()
-		defer other.context.Unlock()
-	}
 	return g.context.newGeom(C.GEOSSymDifferencePrec_r(g.context.handle, g.geom, other.geom, C.double(gridSize)), nil)
 }
 
@@ -824,10 +716,6 @@ func (g *Geom) Touches(other *Geom) bool {
 	g.mustNotBeDestroyed()
 	g.context.Lock()
 	defer g.context.Unlock()
-	if other.context != g.context {
-		other.context.Lock()
-		defer other.context.Unlock()
-	}
 	switch C.GEOSTouches_r(g.context.handle, g.geom, other.geom) {
 	case 0:
 		return false
@@ -859,10 +747,6 @@ func (g *Geom) Union(other *Geom) *Geom {
 	g.mustNotBeDestroyed()
 	g.context.Lock()
 	defer g.context.Unlock()
-	if other.context != g.context {
-		other.context.Lock()
-		defer other.context.Unlock()
-	}
 	return g.context.newGeom(C.GEOSUnion_r(g.context.handle, g.geom, other.geom), nil)
 }
 
@@ -871,10 +755,6 @@ func (g *Geom) UnionPrec(other *Geom, gridSize float64) *Geom {
 	g.mustNotBeDestroyed()
 	g.context.Lock()
 	defer g.context.Unlock()
-	if other.context != g.context {
-		other.context.Lock()
-		defer other.context.Unlock()
-	}
 	return g.context.newGeom(C.GEOSUnionPrec_r(g.context.handle, g.geom, other.geom, C.double(gridSize)), nil)
 }
 
@@ -883,10 +763,6 @@ func (g *Geom) Within(other *Geom) bool {
 	g.mustNotBeDestroyed()
 	g.context.Lock()
 	defer g.context.Unlock()
-	if other.context != g.context {
-		other.context.Lock()
-		defer other.context.Unlock()
-	}
 	switch C.GEOSWithin_r(g.context.handle, g.geom, other.geom) {
 	case 0:
 		return false

@@ -37,19 +37,27 @@
   comment: returns g clipped to a rectangular polygon
   type: unary
   extraArgs:
-  - name: xMin
+  - name: minX
     type: float64
-  - name: yMin
+  - name: minY
     type: float64
-  - name: xMax
+  - name: maxX
     type: float64
-  - name: yMax
+  - name: maxY
     type: float64
 - name: Clone
   comment: returns a clone of g
   type: unary
   geosFunction: GEOSGeom_clone_r
 - name: ConcaveHull
+  comment: returns the concave hull of g
+  type: unary
+  extraArgs:
+  - name: ratio
+    type: float64
+  - name: allowHoles
+    type: uint
+- name: ConcaveHullByLength
   comment: returns the concave hull of g
   type: unary
   extraArgs:
