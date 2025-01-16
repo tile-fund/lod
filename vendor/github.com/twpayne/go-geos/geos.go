@@ -81,3 +81,32 @@ const (
 	PrecisionRulePointwise     PrecisionRule = C.GEOS_PREC_NO_TOPO
 	PrecisionRuleKeepCollapsed PrecisionRule = C.GEOS_PREC_KEEP_COLLAPSED
 )
+
+type MakeValidMethod int
+
+// MakeValidMethods.
+const (
+	MakeValidLinework  MakeValidMethod = C.GEOS_MAKE_VALID_LINEWORK
+	MakeValidStructure MakeValidMethod = C.GEOS_MAKE_VALID_STRUCTURE
+)
+
+type MakeValidCollapsed int
+
+// MakeValidMethods.
+const (
+	MakeValidDiscardCollapsed MakeValidCollapsed = 0
+	MakeValidKeepCollapsed    MakeValidCollapsed = 1
+)
+
+// VersionCompare returns a negative number if the GEOS version is less than the
+// given major.minor.patch version, zero if it is equal, or a positive number
+// otherwise.
+func VersionCompare(major, minor, patch int) int {
+	if majorDelta := VersionMajor - major; majorDelta != 0 {
+		return majorDelta
+	}
+	if minorDelta := VersionMinor - minor; minorDelta != 0 {
+		return minorDelta
+	}
+	return VersionPatch - patch
+}

@@ -14,6 +14,7 @@ import (
 type Context struct {
 	sync.Mutex
 	handle              C.GEOSContextHandle_t
+	ewkbWithSRIDWriter  *C.struct_GEOSWKBWriter_t
 	geoJSONReader       *C.struct_GEOSGeoJSONReader_t
 	geoJSONWriter       *C.struct_GEOSGeoJSONWriter_t
 	wkbReader           *C.struct_GEOSWKBReader_t
@@ -78,6 +79,17 @@ func (c *Context) Clone(g *Geom) *Geom {
 	return clone
 }
 
+// NewBufferParams returns a new BufferParams.
+func (c *Context) NewBufferParams() *BufferParams {
+	c.Lock()
+	defer c.Unlock()
+	cBufferParams := C.GEOSBufferParams_create_r(c.handle)
+	if cBufferParams == nil {
+		panic(c.err)
+	}
+	return c.newBufParams(cBufferParams)
+}
+
 // NewCollection returns a new collection.
 func (c *Context) NewCollection(typeID TypeID, geoms []*Geom) *Geom {
 	if len(geoms) == 0 {
@@ -139,9 +151,9 @@ func (c *Context) NewEmptyPolygon() *Geom {
 }
 
 // NewGeomFromBounds returns a new polygon constructed from bounds.
-func (c *Context) NewGeomFromBounds(bounds *Bounds) *Geom {
+func (c *Context) NewGeomFromBounds(minX, minY, maxX, maxY float64) *Geom {
 	var typeID C.int
-	geom := C.c_newGEOSGeomFromBounds_r(c.handle, &typeID, C.double(bounds.MinX), C.double(bounds.MinY), C.double(bounds.MaxX), C.double(bounds.MaxY))
+	geom := C.c_newGEOSGeomFromBounds_r(c.handle, &typeID, C.double(minX), C.double(minY), C.double(maxX), C.double(maxY))
 	if geom == nil {
 		panic(c.err)
 	}
@@ -178,7 +190,7 @@ func (c *Context) NewGeomFromWKB(wkb []byte) (*Geom, error) {
 	}
 	wkbCBuf := C.CBytes(wkb)
 	defer C.free(wkbCBuf)
-	return c.newGeom(C.GEOSWKBReader_read_r(c.handle, c.wkbReader, (*C.uchar)(wkbCBuf), C.ulong(len(wkb))), nil), c.err
+	return c.newGeom(C.GEOSWKBReader_read_r(c.handle, c.wkbReader, (*C.uchar)(wkbCBuf), (C.ulong)(len(wkb))), nil), c.err
 }
 
 // NewGeomFromWKT parses a geometry in WKT format from wkt.
@@ -226,10 +238,9 @@ func (c *Context) NewPoints(coords [][]float64) []*Geom {
 	if coords == nil {
 		return nil
 	}
-	geoms := make([]*Geom, 0, len(coords))
-	for _, coord := range coords {
-		geom := c.NewPoint(coord)
-		geoms = append(geoms, geom)
+	geoms := make([]*Geom, len(coords))
+	for i := range geoms {
+		geoms[i] = c.NewPoint(coords[i])
 	}
 	return geoms
 }
@@ -259,13 +270,13 @@ func (c *Context) NewPolygon(coordss [][][]float64) *Geom {
 	var holes **C.struct_GEOSGeom_t
 	nholes := len(coordss) - 1
 	if nholes > 0 {
-		holesSlice = make([]*C.struct_GEOSGeom_t, 0, nholes)
-		for i := 0; i < nholes; i++ {
+		holesSlice = make([]*C.struct_GEOSGeom_t, nholes)
+		for i := range holesSlice {
 			hole := C.GEOSGeom_createLinearRing_r(c.handle, c.newGEOSCoordSeqFromCoords(coordss[i+1]))
 			if hole == nil {
 				panic(c.err)
 			}
-			holesSlice = append(holesSlice, hole)
+			holesSlice[i] = hole
 		}
 		holes = (**C.struct_GEOSGeom_t)(unsafe.Pointer(&holesSlice[0]))
 	}
@@ -355,15 +366,16 @@ func (c *Context) cGeomsLocked(geoms []*Geom) (**C.struct_GEOSGeom_t, func()) {
 	}
 	uniqueContexts := map[*Context]struct{}{c: {}}
 	var extraContexts []*Context
-	cGeoms := make([]*C.struct_GEOSGeom_t, 0, len(geoms))
-	for _, geom := range geoms {
+	cGeoms := make([]*C.struct_GEOSGeom_t, len(geoms))
+	for i := range cGeoms {
+		geom := geoms[i]
 		geom.mustNotBeDestroyed()
 		if _, ok := uniqueContexts[geom.context]; !ok {
 			geom.context.Lock()
 			uniqueContexts[geom.context] = struct{}{}
 			extraContexts = append(extraContexts, geom.context)
 		}
-		cGeoms = append(cGeoms, geom.geom)
+		cGeoms[i] = geom.geom
 	}
 	return &cGeoms[0], func() {
 		for i := len(extraContexts) - 1; i >= 0; i-- {
@@ -375,6 +387,9 @@ func (c *Context) cGeomsLocked(geoms []*Geom) (**C.struct_GEOSGeom_t, func()) {
 func (c *Context) finish() {
 	c.Lock()
 	defer c.Unlock()
+	if c.ewkbWithSRIDWriter != nil {
+		C.GEOSWKBWriter_destroy_r(c.handle, c.ewkbWithSRIDWriter)
+	}
 	if c.geoJSONReader != nil {
 		C.GEOSGeoJSONReader_destroy_r(c.handle, c.geoJSONReader)
 	}
@@ -394,6 +409,18 @@ func (c *Context) finish() {
 		C.GEOSWKTWriter_destroy_r(c.handle, c.wktWriter)
 	}
 	C.finishGEOS_r(c.handle)
+}
+
+func (c *Context) newBufParams(p *C.struct_GEOSBufParams_t) *BufferParams {
+	if p == nil {
+		return nil
+	}
+	bufParams := &BufferParams{
+		context:      c,
+		bufferParams: p,
+	}
+	runtime.SetFinalizer(bufParams, (*BufferParams).finalize)
+	return bufParams
 }
 
 func (c *Context) newCoordSeq(gs *C.struct_GEOSCoordSeq_t, finalizer func(*CoordSeq)) *CoordSeq {
@@ -447,10 +474,10 @@ func (c *Context) newCoordsFromGEOSCoordSeq(s *C.struct_GEOSCoordSeq_t) [][]floa
 	if C.GEOSCoordSeq_copyToBuffer_r(c.handle, s, (*C.double)(&flatCoords[0]), hasZ, hasM) == 0 {
 		panic(c.err)
 	}
-	coords := make([][]float64, 0, size)
-	for i := 0; i < int(size); i++ {
-		coord := flatCoords[i*int(dimensions) : (i+1)*int(dimensions)]
-		coords = append(coords, coord)
+	coords := make([][]float64, size)
+	for i := range coords {
+		coord := flatCoords[i*int(dimensions) : (i+1)*int(dimensions) : (i+1)*int(dimensions)]
+		coords[i] = coord
 	}
 	return coords
 }
@@ -466,9 +493,10 @@ func (c *Context) newGEOSCoordSeqFromCoords(coords [][]float64) *C.struct_GEOSCo
 		hasM = 1
 	}
 
-	flatCoords := make([]float64, 0, len(coords)*len(coords[0]))
-	for _, coord := range coords {
-		flatCoords = append(flatCoords, coord...)
+	dimensions := len(coords[0])
+	flatCoords := make([]float64, len(coords)*dimensions)
+	for i, coord := range coords {
+		copy(flatCoords[i*dimensions:(i+1)*dimensions], coord)
 	}
 	return C.GEOSCoordSeq_copyFromBuffer_r(c.handle, (*C.double)(unsafe.Pointer(&flatCoords[0])), C.uint(len(coords)), hasZ, hasM)
 }
@@ -499,11 +527,18 @@ func (c *Context) newGeom(geom *C.struct_GEOSGeom_t, parent *Geom) *Geom {
 	return g
 }
 
+func (c *Context) newNonNilBufferParams(p *C.struct_GEOSBufParams_t) *BufferParams {
+	if p == nil {
+		panic(c.err)
+	}
+	return c.newBufParams(p)
+}
+
 func (c *Context) newNonNilCoordSeq(s *C.struct_GEOSCoordSeq_t) *CoordSeq {
 	if s == nil {
 		panic(c.err)
 	}
-	return c.newCoordSeq(s, (*CoordSeq).destroy)
+	return c.newCoordSeq(s, (*CoordSeq).Destroy)
 }
 
 func (c *Context) newNonNilGeom(geom *C.struct_GEOSGeom_t, parent *Geom) *Geom {
